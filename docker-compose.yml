@@ -1,0 +1,56 @@
+version: '3'
+services:
+  ## NOTEBOOK SERVICE
+  notebook:
+    build:
+      context: ./jupyter-notebook
+    ports:
+      - "8888:8888"
+    depends_on: 
+      - mlflow
+      - mysql
+    environment: 
+      NB_USER: bryan
+      NB_UID: 1008
+      NB_GID: 1011
+      CHOWN_HOME: 'yes'
+      CHOWN_HOME_OPTS: -R
+      MLFLOW_TRACKING_URI: 'http://mlflow:5000'
+    volumes:
+      ## CHANGE ME TO HOST NOTEBOOK FOLDER PATH
+      - ./notebooks:/notebooks
+    command: "start-notebook.sh \
+      --NotebookApp.password=${ACCESS_TOKEN}"
+    user: root
+  # MLFLOW SERVICE  
+  mlflow:
+    build:
+      context: ./ml-flow
+    depends_on: 
+      - mysql
+    expose: 
+      - "5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./artifact-root:/mlflow
+  # MSQL SERVICE
+  mysql:
+    container_name: mysql
+    command: --default-authentication-plugin=mysql_native_password
+    image: mysql:8.0.25
+    restart: always
+    volumes:
+      ## CHANGE ME TO HOST MYSQL DATA FOLDER PATH
+      - ./mysql-store:/var/lib/mysql
+    environment:
+      - MYSQL_RANDOM_ROOT_PASSWORD=yes
+      - MYSQL_PASSWORD=vzuLboFdNSxr4h
+      - MYSQL_USER=mlflow_user
+      - MYSQL_DATABASE=mlflow
+    ports:
+      - "3306:3306"
+volumes:
+  msql-store:
+  notebooks:
+  artifact-root:
