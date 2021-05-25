@@ -4,11 +4,14 @@ services:
   notebook:
     build:
       context: ./jupyter-notebook
+    networks: 
+      - mlflow-net
     ports:
       - "8888:8888"
     depends_on: 
       - mlflow
       - mysql
+      - minio
     environment: 
       NB_USER: bryan
       NB_UID: 1008
@@ -16,41 +19,70 @@ services:
       CHOWN_HOME: 'yes'
       CHOWN_HOME_OPTS: -R
       MLFLOW_TRACKING_URI: 'http://mlflow:5000'
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      MLFLOW_S3_IGNORE_TLS: 'true'
     volumes:
-      ## CHANGE ME TO HOST NOTEBOOK FOLDER PATH
-      - ./notebooks:/notebooks
+      - ./notebooks-volume:/notebooks
     command: "start-notebook.sh \
       --NotebookApp.password=${ACCESS_TOKEN}"
     user: root
   # MLFLOW SERVICE  
   mlflow:
     build:
-      context: ./ml-flow
+      context: ./mlflow-server
+    networks: 
+      - mlflow-net
     depends_on: 
       - mysql
+      - minio
+    volumes:
+      - ./mlflow-volume:/mlflow
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: ${MLFLOW_S3_ENDPOINT_URL}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      MLFLOW_S3_IGNORE_TLS: 'true'
     expose: 
       - "5000"
     ports:
       - "5000:5000"
-    volumes:
-      - ./artifact-root:/mlflow
+    command: mlflow server --backend-store-uri mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/mlflow --default-artifact-root /mlflow  --host 0.0.0.0
   # MSQL SERVICE
   mysql:
     container_name: mysql
     command: --default-authentication-plugin=mysql_native_password
     image: mysql:8.0.25
     restart: always
+    networks: 
+      - mlflow-net
     volumes:
-      ## CHANGE ME TO HOST MYSQL DATA FOLDER PATH
-      - ./mysql-store:/var/lib/mysql
+      - ./mysql-volume:/var/lib/mysql
     environment:
       - MYSQL_RANDOM_ROOT_PASSWORD=yes
-      - MYSQL_PASSWORD=vzuLboFdNSxr4h
-      - MYSQL_USER=mlflow_user
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER}
       - MYSQL_DATABASE=mlflow
     ports:
       - "3306:3306"
-volumes:
-  msql-store:
-  notebooks:
-  artifact-root:
+  # MINIO SERVICE
+  minio:
+    image: minio/minio
+    networks: 
+        - mlflow-net
+    container_name: minio
+    restart: always
+    working_dir: "/minio/storage"
+    volumes:
+        - ./minio-volume:/minio/storage
+    environment:
+      MINIO_ROOT_USER: ${AWS_ACCESS_KEY_ID}
+      MINIO_ROOT_PASSWORD: ${AWS_SECRET_ACCESS_KEY}
+    expose:
+      - "9000"
+    ports:
+      - "9000:9000"
+    command: server ./minio-volume
+networks: 
+  mlflow-net:

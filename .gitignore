@@ -1,7 +1,9 @@
 .DS_Store
-mysql-store/
-notebooks/
-artifact-root/
+.env
+mysql-volume/
+notebooks-volume/
+minio-volume/
+mlflow-volume/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
